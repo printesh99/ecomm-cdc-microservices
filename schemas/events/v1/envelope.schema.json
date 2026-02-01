@@ -1,0 +1,46 @@
+{
+  "$id": "https://example.com/schemas/events/v1/envelope.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "EcommEventEnvelopeV1",
+  "type": "object",
+  "required": [
+    "event_id",
+    "event_type",
+    "event_version",
+    "producer",
+    "occurred_at",
+    "correlation_id",
+    "key",
+    "data"
+  ],
+  "properties": {
+    "event_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "event_type": {
+      "type": "string"
+    },
+    "event_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "producer": {
+      "type": "string"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "correlation_id": {
+      "type": "string"
+    },
+    "key": {
+      "type": "object"
+    },
+    "data": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": false
+}

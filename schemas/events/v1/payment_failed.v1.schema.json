@@ -1,0 +1,64 @@
+{
+  "$id": "https://example.com/schemas/events/v1/payment_failed.v1.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PaymentFailedV1",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "event_type": {
+      "const": "PaymentFailed"
+    },
+    "producer": {
+      "const": "payment-service"
+    },
+    "key": {
+      "type": "object",
+      "required": [
+        "order_id"
+      ],
+      "properties": {
+        "order_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "payment_id",
+        "order_id",
+        "amount",
+        "currency",
+        "status",
+        "reason"
+      ],
+      "properties": {
+        "payment_id": {
+          "type": "string"
+        },
+        "order_id": {
+          "type": "string"
+        },
+        "amount": {
+          "type": "number",
+          "minimum": 0
+        },
+        "currency": {
+          "type": "string"
+        },
+        "status": {
+          "const": "FAILED"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "$id": "https://example.com/schemas/events/v1/order_paid.v1.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OrderPaidV1",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "event_type": {
+      "const": "OrderPaid"
+    },
+    "producer": {
+      "const": "order-service"
+    },
+    "key": {
+      "type": "object",
+      "required": [
+        "order_id"
+      ],
+      "properties": {
+        "order_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "order_id",
+        "status"
+      ],
+      "properties": {
+        "order_id": {
+          "type": "string"
+        },
+        "status": {
+          "const": "PAID"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

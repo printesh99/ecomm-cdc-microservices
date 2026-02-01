@@ -1,0 +1,55 @@
+{
+  "$id": "https://example.com/schemas/events/v1/shipment_created.v1.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ShipmentCreatedV1",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "event_type": {
+      "const": "ShipmentCreated"
+    },
+    "producer": {
+      "const": "shipping-service"
+    },
+    "key": {
+      "type": "object",
+      "required": [
+        "order_id"
+      ],
+      "properties": {
+        "order_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "shipment_id",
+        "order_id",
+        "status",
+        "address"
+      ],
+      "properties": {
+        "shipment_id": {
+          "type": "string"
+        },
+        "order_id": {
+          "type": "string"
+        },
+        "status": {
+          "const": "CREATED"
+        },
+        "address": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}

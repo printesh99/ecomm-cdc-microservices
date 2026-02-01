@@ -1,0 +1,81 @@
+{
+  "$id": "https://example.com/schemas/events/v1/cart_checked_out.v1.schema.json",
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CartCheckedOutV1",
+  "allOf": [
+    {
+      "$ref": "envelope.schema.json"
+    }
+  ],
+  "type": "object",
+  "properties": {
+    "event_type": {
+      "const": "CartCheckedOut"
+    },
+    "producer": {
+      "const": "cart-service"
+    },
+    "key": {
+      "type": "object",
+      "required": [
+        "cart_id"
+      ],
+      "properties": {
+        "cart_id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "data": {
+      "type": "object",
+      "required": [
+        "cart_id",
+        "customer_id",
+        "items",
+        "currency",
+        "total_amount"
+      ],
+      "properties": {
+        "cart_id": {
+          "type": "string"
+        },
+        "customer_id": {
+          "type": "string"
+        },
+        "currency": {
+          "type": "string"
+        },
+        "total_amount": {
+          "type": "number"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "product_id",
+              "qty",
+              "unit_price"
+            ],
+            "properties": {
+              "product_id": {
+                "type": "string"
+              },
+              "qty": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "unit_price": {
+                "type": "number",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
