@@ -3,6 +3,11 @@ pipeline {
 
   parameters {
     booleanParam(name: 'SKIP_BUILD', defaultValue: true, description: 'Skip build/tag steps when only testing CDC/outbox')
+    booleanParam(name: 'RUN_DB_INIT', defaultValue: false, description: 'Trigger DB init hook (creates publication/permissions)')
+    booleanParam(name: 'RESTART_CONNECTOR', defaultValue: false, description: 'Trigger Debezium connector restart via GitOps')
+    booleanParam(name: 'RUN_SMOKE_TEST', defaultValue: true, description: 'Trigger outbox smoke test job')
+    booleanParam(name: 'VERIFY_TOPICS', defaultValue: true, description: 'Verify Kafka topics after sync')
+    string(name: 'TOPIC_PREFIX', defaultValue: 'ecomm', description: 'Topic prefix to verify (ex: ecomm)')
   }
 
   environment {
@@ -13,6 +18,9 @@ pipeline {
     GITOPS_BRANCH = "main"
     GITOPS_OVERLAY_PATH = "apps/overlays/dev/kustomization.yaml"
     GITOPS_OUTBOX_JOB_PATH = "apps/overlays/dev/outbox-test-job.yaml"
+    GITOPS_DB_INIT_JOB_PATH = "apps/overlays/dev/outbox-db-init-job.yaml"
+    GITOPS_OUTBOX_CONNECTOR_PATH = "apps/overlays/dev/outbox-connector.yaml"
+    KAFKA_BOOTSTRAP = "ecomm-kafka-kafka-bootstrap.ecomm-streaming.svc.cluster.local:9092"
 
     GIT_AUTHOR_NAME = "jenkins"
     GIT_AUTHOR_EMAIL = "jenkins@local"
@@ -112,7 +120,88 @@ pipeline {
       }
     }
 
+    stage("Trigger DB Init Hook") {
+      when { expression { return params.RUN_DB_INIT } }
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
+          sh '''
+            set -e
+            rm -rf /tmp/gitops && mkdir -p /tmp/gitops
+            cd /tmp/gitops
+
+            git clone ${GITOPS_REPO} repo
+            cd repo
+            git checkout ${GITOPS_BRANCH}
+            git config user.name "${GIT_COMMITTER_NAME}"
+            git config user.email "${GIT_COMMITTER_EMAIL}"
+            git pull --rebase origin ${GITOPS_BRANCH}
+
+            if [ ! -f ${GITOPS_DB_INIT_JOB_PATH} ]; then
+              echo "DB init job not found at ${GITOPS_DB_INIT_JOB_PATH}; skipping."
+              exit 0
+            fi
+
+            RUN_ID=$(date +%s)
+            perl -0777 -i -pe "s/run_id: \\".*\\"/run_id: \\"$RUN_ID\\"/g" ${GITOPS_DB_INIT_JOB_PATH} || true
+
+            git add ${GITOPS_DB_INIT_JOB_PATH}
+            git commit -m "chore: rerun db init $RUN_ID" || echo "No changes to commit"
+            git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH} || {
+              echo "Push failed, rebasing and retrying..."
+              git pull --rebase origin ${GITOPS_BRANCH}
+              RUN_ID=$(date +%s)
+              perl -0777 -i -pe "s/run_id: \\".*\\"/run_id: \\"$RUN_ID\\"/g" ${GITOPS_DB_INIT_JOB_PATH} || true
+              git add ${GITOPS_DB_INIT_JOB_PATH}
+              git commit -m "chore: rerun db init $RUN_ID" || echo "No changes to commit"
+              git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH}
+            }
+          '''
+        }
+      }
+    }
+
+    stage("Restart Debezium Connector") {
+      when { expression { return params.RESTART_CONNECTOR } }
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
+          sh '''
+            set -e
+            rm -rf /tmp/gitops && mkdir -p /tmp/gitops
+            cd /tmp/gitops
+
+            git clone ${GITOPS_REPO} repo
+            cd repo
+            git checkout ${GITOPS_BRANCH}
+            git config user.name "${GIT_COMMITTER_NAME}"
+            git config user.email "${GIT_COMMITTER_EMAIL}"
+            git pull --rebase origin ${GITOPS_BRANCH}
+
+            if [ ! -f ${GITOPS_OUTBOX_CONNECTOR_PATH} ]; then
+              echo "Connector file not found at ${GITOPS_OUTBOX_CONNECTOR_PATH}; skipping."
+              exit 0
+            fi
+
+            RUN_ID=$(date +%s)
+            perl -0777 -i -pe "s/strimzi.io\\/restart: \\".*\\"/strimzi.io\\/restart: \\"$RUN_ID\\"/g" ${GITOPS_OUTBOX_CONNECTOR_PATH} || true
+
+            git add ${GITOPS_OUTBOX_CONNECTOR_PATH}
+            git commit -m "chore: restart connector $RUN_ID" || echo "No changes to commit"
+            git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH} || {
+              echo "Push failed, rebasing and retrying..."
+              git pull --rebase origin ${GITOPS_BRANCH}
+              RUN_ID=$(date +%s)
+              perl -0777 -i -pe "s/strimzi.io\\/restart: \\".*\\"/strimzi.io\\/restart: \\"$RUN_ID\\"/g" ${GITOPS_OUTBOX_CONNECTOR_PATH} || true
+              git add ${GITOPS_OUTBOX_CONNECTOR_PATH}
+              git commit -m "chore: restart connector $RUN_ID" || echo "No changes to commit"
+              git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH}
+            }
+          '''
+        }
+      }
+    }
+
     stage("Trigger Outbox Smoke Test") {
+      when { expression { return params.RUN_SMOKE_TEST } }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
           sh '''
@@ -148,6 +237,37 @@ pipeline {
             }
           '''
         }
+      }
+    }
+
+    stage("Verify Kafka Topics") {
+      when { expression { return params.VERIFY_TOPICS } }
+      steps {
+        sh '''
+          set -e
+          NS="ecomm-streaming"
+          BOOTSTRAP="${KAFKA_BOOTSTRAP}"
+          PREFIX="${TOPIC_PREFIX}"
+
+          POD=$(oc -n ${NS} get pods -l strimzi.io/name=ecomm-kafka-kafka -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          if [ -z "$POD" ]; then
+            POD=$(oc -n ${NS} get pods -l strimzi.io/cluster=ecomm-kafka -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+          fi
+          if [ -z "$POD" ]; then
+            echo "Kafka pod not found in ${NS}"
+            oc -n ${NS} get pods
+            exit 1
+          fi
+
+          echo "Using Kafka pod: $POD"
+          TOPICS=$(oc -n ${NS} exec "$POD" -- /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$BOOTSTRAP" --list | sort || true)
+          echo "$TOPICS"
+
+          echo "$TOPICS" | grep -q "^${PREFIX}\\." || {
+            echo "No topics found with prefix '${PREFIX}'."
+            exit 1
+          }
+        '''
       }
     }
   }
