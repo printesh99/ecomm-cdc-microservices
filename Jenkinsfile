@@ -92,6 +92,7 @@ pipeline {
             git checkout ${GITOPS_BRANCH}
             git config user.name "${GIT_COMMITTER_NAME}"
             git config user.email "${GIT_COMMITTER_EMAIL}"
+            git pull --rebase origin ${GITOPS_BRANCH}
 
             # Replace newTag for each service (expects images: entries exist)
             for svc in catalog-service cart-service orders-service payment-service shipping-service; do
@@ -101,7 +102,11 @@ pipeline {
 
             git add ${GITOPS_OVERLAY_PATH}
             git commit -m "ci: bump images to ${GIT_SHA}" || echo "No changes to commit"
-            git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH}
+            git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH} || {
+              echo "Push failed, rebasing and retrying..."
+              git pull --rebase origin ${GITOPS_BRANCH}
+              git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH}
+            }
           '''
         }
       }
@@ -120,6 +125,7 @@ pipeline {
             git checkout ${GITOPS_BRANCH}
             git config user.name "${GIT_COMMITTER_NAME}"
             git config user.email "${GIT_COMMITTER_EMAIL}"
+            git pull --rebase origin ${GITOPS_BRANCH}
 
             if [ ! -f ${GITOPS_OUTBOX_JOB_PATH} ]; then
               echo "Outbox job not found at ${GITOPS_OUTBOX_JOB_PATH}; skipping."
@@ -131,7 +137,15 @@ pipeline {
 
             git add ${GITOPS_OUTBOX_JOB_PATH}
             git commit -m "chore: rerun outbox smoke test $RUN_ID" || echo "No changes to commit"
-            git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH}
+            git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH} || {
+              echo "Push failed, rebasing and retrying..."
+              git pull --rebase origin ${GITOPS_BRANCH}
+              RUN_ID=$(date +%s)
+              perl -0777 -i -pe "s/run_id: \\".*\\"/run_id: \\"$RUN_ID\\"/g" ${GITOPS_OUTBOX_JOB_PATH} || true
+              git add ${GITOPS_OUTBOX_JOB_PATH}
+              git commit -m "chore: rerun outbox smoke test $RUN_ID" || echo "No changes to commit"
+              git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH}
+            }
           '''
         }
       }
