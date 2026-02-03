@@ -13,6 +13,11 @@ pipeline {
     GITOPS_BRANCH = "main"
     GITOPS_OVERLAY_PATH = "apps/overlays/dev/kustomization.yaml"
     GITOPS_OUTBOX_JOB_PATH = "apps/overlays/dev/outbox-test-job.yaml"
+
+    GIT_AUTHOR_NAME = "jenkins"
+    GIT_AUTHOR_EMAIL = "jenkins@local"
+    GIT_COMMITTER_NAME = "jenkins"
+    GIT_COMMITTER_EMAIL = "jenkins@local"
   }
 
   stages {
@@ -85,6 +90,8 @@ pipeline {
             git clone ${GITOPS_REPO} repo
             cd repo
             git checkout ${GITOPS_BRANCH}
+            git config user.name "${GIT_COMMITTER_NAME}"
+            git config user.email "${GIT_COMMITTER_EMAIL}"
 
             # Replace newTag for each service (expects images: entries exist)
             for svc in catalog-service cart-service orders-service payment-service shipping-service; do
@@ -111,6 +118,8 @@ pipeline {
             git clone ${GITOPS_REPO} repo
             cd repo
             git checkout ${GITOPS_BRANCH}
+            git config user.name "${GIT_COMMITTER_NAME}"
+            git config user.email "${GIT_COMMITTER_EMAIL}"
 
             if [ ! -f ${GITOPS_OUTBOX_JOB_PATH} ]; then
               echo "Outbox job not found at ${GITOPS_OUTBOX_JOB_PATH}; skipping."
