@@ -248,6 +248,9 @@ pipeline {
           NS="ecomm-streaming"
           BOOTSTRAP="${KAFKA_BOOTSTRAP}"
           PREFIX="${TOPIC_PREFIX}"
+          if [ -z "$PREFIX" ]; then
+            PREFIX="ecomm"
+          fi
 
           POD=$(oc -n ${NS} get pods -l strimzi.io/name=ecomm-kafka-kafka -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
           if [ -z "$POD" ]; then
@@ -260,6 +263,7 @@ pipeline {
           fi
 
           echo "Using Kafka pod: $POD"
+          echo "Topic prefix: $PREFIX"
           TOPICS=$(oc -n ${NS} exec "$POD" -- /opt/kafka/bin/kafka-topics.sh --bootstrap-server "$BOOTSTRAP" --list | sort || true)
           echo "$TOPICS"
 
