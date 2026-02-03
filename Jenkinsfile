@@ -8,6 +8,7 @@ pipeline {
     GITOPS_REPO = "https://github.com/printesh99/ecomm-cdc-gitops.git"
     GITOPS_BRANCH = "main"
     GITOPS_OVERLAY_PATH = "apps/overlays/dev/kustomization.yaml"
+    GITOPS_OUTBOX_JOB_PATH = "apps/overlays/dev/outbox-test-job.yaml"
   }
 
   stages {
@@ -92,6 +93,33 @@ pipeline {
         }
       }
     }
+
+    stage("Trigger Outbox Smoke Test") {
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
+          sh '''
+            set -e
+            rm -rf /tmp/gitops && mkdir -p /tmp/gitops
+            cd /tmp/gitops
+
+            git clone ${GITOPS_REPO} repo
+            cd repo
+            git checkout ${GITOPS_BRANCH}
+
+            if [ ! -f ${GITOPS_OUTBOX_JOB_PATH} ]; then
+              echo "Outbox job not found at ${GITOPS_OUTBOX_JOB_PATH}; skipping."
+              exit 0
+            fi
+
+            RUN_ID=$(date +%s)
+            perl -0777 -i -pe "s/run_id: \\".*\\"/run_id: \\"$RUN_ID\\"/g" ${GITOPS_OUTBOX_JOB_PATH} || true
+
+            git add ${GITOPS_OUTBOX_JOB_PATH}
+            git commit -m "chore: rerun outbox smoke test $RUN_ID" || echo "No changes to commit"
+            git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH}
+          '''
+        }
+      }
+    }
   }
 }
-
