@@ -1,6 +1,10 @@
 pipeline {
   agent any
 
+  parameters {
+    booleanParam(name: 'SKIP_BUILD', defaultValue: true, description: 'Skip build/tag steps when only testing CDC/outbox')
+  }
+
   environment {
     REGISTRY = "image-registry.openshift-image-registry.svc:5000"
     IMAGE_NS = "ecomm"
@@ -35,6 +39,7 @@ pipeline {
     }
 
     stage("Build & Tag Images (Binary Builds)") {
+      when { expression { return !params.SKIP_BUILD } }
       steps {
         script {
           def services = [
@@ -69,6 +74,7 @@ pipeline {
     }
 
     stage("Update GitOps (bump image tags)") {
+      when { expression { return !params.SKIP_BUILD } }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
           sh '''
