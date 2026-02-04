@@ -2,6 +2,7 @@ pipeline {
   agent any
 
   parameters {
+    booleanParam(name: 'RUN_ALL', defaultValue: false, description: 'Run DB init + restart connector + smoke test + verify topics')
     booleanParam(name: 'SKIP_BUILD', defaultValue: true, description: 'Skip build/tag steps when only testing CDC/outbox')
     booleanParam(name: 'RUN_DB_INIT', defaultValue: false, description: 'Trigger DB init hook (creates publication/permissions)')
     booleanParam(name: 'RESTART_CONNECTOR', defaultValue: false, description: 'Trigger Debezium connector restart via GitOps')
@@ -17,8 +18,8 @@ pipeline {
     GITOPS_REPO = "https://github.com/printesh99/ecomm-cdc-gitops.git"
     GITOPS_BRANCH = "main"
     GITOPS_OVERLAY_PATH = "apps/overlays/dev/kustomization.yaml"
-    GITOPS_OUTBOX_JOB_PATH = "apps/overlays/dev/outbox-test-job.yaml"
-    GITOPS_DB_INIT_JOB_PATH = "apps/overlays/dev/outbox-db-init-job.yaml"
+    GITOPS_OUTBOX_JOB_PATH = "apps/overlays/dev-db/outbox-test-job.yaml"
+    GITOPS_DB_INIT_JOB_PATH = "apps/overlays/dev-db/outbox-db-init-job.yaml"
     GITOPS_OUTBOX_CONNECTOR_PATH = "apps/overlays/dev/outbox-connector.yaml"
     KAFKA_BOOTSTRAP = "ecomm-kafka-kafka-bootstrap.ecomm-streaming.svc.cluster.local:9092"
 
@@ -121,11 +122,14 @@ pipeline {
     }
 
     stage("Trigger DB Init Hook") {
-      when { expression { return params.RUN_DB_INIT } }
+      when { expression { return params.RUN_ALL || params.RUN_DB_INIT } }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
           sh '''
             set -e
+            # delete existing job so Argo can recreate it on sync
+            oc -n db delete job outbox-db-init --ignore-not-found
+            oc -n db delete pod -l job-name=outbox-db-init --grace-period=0 --force --ignore-not-found
             rm -rf /tmp/gitops && mkdir -p /tmp/gitops
             cd /tmp/gitops
 
@@ -161,7 +165,7 @@ pipeline {
     }
 
     stage("Restart Debezium Connector") {
-      when { expression { return params.RESTART_CONNECTOR } }
+      when { expression { return params.RUN_ALL || params.RESTART_CONNECTOR } }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
           sh '''
@@ -201,11 +205,14 @@ pipeline {
     }
 
     stage("Trigger Outbox Smoke Test") {
-      when { expression { return params.RUN_SMOKE_TEST } }
+      when { expression { return params.RUN_ALL || params.RUN_SMOKE_TEST } }
       steps {
         withCredentials([usernamePassword(credentialsId: 'github-pat', usernameVariable: 'GIT_USER', passwordVariable: 'GIT_PAT')]) {
           sh '''
             set -e
+            # delete existing job so Argo can recreate it on sync
+            oc -n db delete job outbox-smoke-test --ignore-not-found
+            oc -n db delete pod -l job-name=outbox-smoke-test --grace-period=0 --force --ignore-not-found
             rm -rf /tmp/gitops && mkdir -p /tmp/gitops
             cd /tmp/gitops
 
@@ -241,7 +248,7 @@ pipeline {
     }
 
     stage("Verify Kafka Topics") {
-      when { expression { return params.VERIFY_TOPICS } }
+      when { expression { return params.RUN_ALL || params.VERIFY_TOPICS } }
       steps {
         sh '''
           set -e
