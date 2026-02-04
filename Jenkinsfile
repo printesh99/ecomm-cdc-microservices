@@ -181,7 +181,7 @@ pipeline {
               exit 0
             fi
 
-            RUN_ID=$(date +%s)
+            RUN_ID=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
             perl -0777 -i -pe "s/strimzi.io\\/restart: \\".*\\"/strimzi.io\\/restart: \\"$RUN_ID\\"/g" ${GITOPS_OUTBOX_CONNECTOR_PATH} || true
 
             git add ${GITOPS_OUTBOX_CONNECTOR_PATH}
@@ -189,7 +189,7 @@ pipeline {
             git push https://${GIT_USER}:${GIT_PAT}@github.com/printesh99/ecomm-cdc-gitops.git ${GITOPS_BRANCH} || {
               echo "Push failed, rebasing and retrying..."
               git pull --rebase origin ${GITOPS_BRANCH}
-              RUN_ID=$(date +%s)
+              RUN_ID=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
               perl -0777 -i -pe "s/strimzi.io\\/restart: \\".*\\"/strimzi.io\\/restart: \\"$RUN_ID\\"/g" ${GITOPS_OUTBOX_CONNECTOR_PATH} || true
               git add ${GITOPS_OUTBOX_CONNECTOR_PATH}
               git commit -m "chore: restart connector $RUN_ID" || echo "No changes to commit"
