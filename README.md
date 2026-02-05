@@ -1,15 +1,68 @@
 # ecomm-cdc-microservices
 
-Portfolio project: E-commerce microservices (Python/FastAPI) using PostgreSQL (Patroni) + Debezium CDC (Kafka Connect) + Kafka events.
+E-commerce CDC demo for OpenShift:
+- Backend microservices: FastAPI
+- Database: PostgreSQL HA on Patroni
+- CDC: Debezium PostgreSQL connector (Kafka Connect / Strimzi)
+- Messaging: Kafka
+- GitOps: Argo CD
+- CI: Jenkins
 
-## Contents
-- `docs/` : architecture + event contracts
-- `schemas/events/v1/` : JSON Schemas for Kafka event payloads (v1)
+## Which Postgres setup fits best?
 
-## Event Schemas
-All v1 events share a common envelope schema:
-- `schemas/events/v1/envelope.schema.json`
+For **modern cloud-native microservices in production**, operator-managed PostgreSQL (for example CloudNativePG/Crunchy) is usually best.
 
-Per-event schemas live alongside it (same folder). They reference the envelope using a relative `$ref`.
+For **your current learning and testing flow on CRC/OpenShift**, staying with **Patroni** is a good choice because your stack is already running and integrated with Debezium.
 
-> Generated on 2026-02-01
+## Repository layout
+
+- `services/catalog` - Catalog APIs (`GET /api/v1/products`, `GET /api/v1/products/{id}`)
+- `services/cart` - Cart APIs (`POST/GET/PATCH/DELETE` cart endpoints)
+- `services/orders` - Order APIs (`POST /api/v1/orders`, `GET /api/v1/orders/{id}`)
+- `services/payment` - Payment APIs (`POST /api/v1/payments`, `POST /api/v1/payments/{id}/confirm`)
+- `services/shipping` - Shipment API (`GET /api/v1/shipments?order_id=...`)
+- `schemas/events/v1` - JSON schemas for v1 events
+- `docs` - architecture and operational notes
+- `Jenkinsfile` - OpenShift binary builds + GitOps trigger pipeline
+
+## Single docker compose (recommended)
+
+From repo root:
+
+```bash
+docker compose up -d --build
+./scripts/register_connector.sh
+./scripts/local_smoke_order.sh
+```
+
+What this gives you:
+- FastAPI services on `localhost:8001..8005`
+- PostgreSQL on `localhost:5432`
+- Kafka broker on `localhost:29092`
+- Kafka Connect REST on `localhost:8083`
+- Kafka UI on `http://localhost:8088`
+
+To stop:
+
+```bash
+docker compose down -v
+```
+
+## Quick local run (manual per service)
+
+```bash
+cd services/catalog
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+export PGHOST=localhost PGPORT=5432 PGDATABASE=ecomm PGUSER=postgres PGPASSWORD=postgres
+uvicorn app:app --reload --port 8001
+```
+
+Use similar commands for other services on different ports.
+
+## Notes
+
+- Services create missing schemas/tables at startup for easier local testing.
+- Each service exposes `/health` and `/ready`.
+- Outbox rows are inserted into schema-specific `outbox_event` tables to support Debezium outbox routing.
+- Connector config for local CDC outbox routing is in `docker/connectors/ecomm-outbox.json`.

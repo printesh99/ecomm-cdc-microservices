@@ -1,0 +1,30 @@
+{
+  "name": "ecomm-outbox",
+  "config": {
+    "connector.class": "io.debezium.connector.postgresql.PostgresConnector",
+    "tasks.max": "1",
+    "database.hostname": "postgres",
+    "database.port": "5432",
+    "database.user": "postgres",
+    "database.password": "postgres",
+    "database.dbname": "ecomm",
+    "plugin.name": "pgoutput",
+    "slot.name": "ecomm_outbox_slot",
+    "publication.name": "dbz_outbox_pub",
+    "publication.autocreate.mode": "filtered",
+    "snapshot.mode": "no_data",
+    "schema.include.list": "cart,catalog,orders,payment,shipping",
+    "table.include.list": "cart.outbox_event,catalog.outbox_event,orders.outbox_event,payment.outbox_event,shipping.outbox_event",
+    "topic.prefix": "ecomm",
+    "decimal.handling.mode": "string",
+    "transforms": "outbox",
+    "transforms.outbox.type": "io.debezium.transforms.outbox.EventRouter",
+    "transforms.outbox.route.by.field": "aggregate_type",
+    "transforms.outbox.route.topic.replacement": "ecomm.${routedByValue}",
+    "transforms.outbox.table.field.event.id": "id",
+    "transforms.outbox.table.field.event.key": "aggregate_id",
+    "transforms.outbox.table.field.event.type": "event_type",
+    "transforms.outbox.table.field.event.payload": "payload",
+    "tombstones.on.delete": "false"
+  }
+}
